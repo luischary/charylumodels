@@ -1,0 +1,5 @@
+venv
+charylumodels/training
+charylumodels/testing
+charylumodels/create_tokenized_dataset.py
+test.py
