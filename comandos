@@ -1,0 +1,8 @@
+para criar a distribuicao
+
+python setup.py sdist
+
+
+Para subir no pypi
+
+twine upload dist/*
