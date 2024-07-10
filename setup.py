@@ -23,7 +23,7 @@ setup(
     packages=find_packages(include=["charylumodels"]),
     # include_package_data=True,
     package_data={"": ["transformer/*.py", "models/**/*.py"]},
-    version="0.0.3",
+    version="0.0.4",
     description="Biblioteca de modelos implemantados por Luis Chary",
     author="Luis Felipe Chary",
     install_requires=_deps,

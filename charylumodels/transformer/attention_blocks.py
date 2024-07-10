@@ -479,13 +479,13 @@ class StableCrossFlashAttention(nn.Module):
         x: torch.Tensor,
         y: torch.Tensor,
     ):
-        qx = self.reshape_for_attention(self.proj_q(x.clone()))
-        kx = self.reshape_for_attention(self.proj_k(x.clone()))
-        vx = self.reshape_for_attention(self.proj_v(x.clone()))
+        qx = self.reshape_for_attention(self.proj_q1(x.clone()))
+        kx = self.reshape_for_attention(self.proj_k1(x.clone()))
+        vx = self.reshape_for_attention(self.proj_v1(x.clone()))
 
-        qy = self.reshape_for_attention(self.proj_q(y.clone()))
-        ky = self.reshape_for_attention(self.proj_k(y.clone()))
-        vy = self.reshape_for_attention(self.proj_v(y.clone()))
+        qy = self.reshape_for_attention(self.proj_q2(y.clone()))
+        ky = self.reshape_for_attention(self.proj_k2(y.clone()))
+        vy = self.reshape_for_attention(self.proj_v2(y.clone()))
 
         # ele normaliza as queries e keys usando rmsnorm
         qx = self.q1_norm(qx)
