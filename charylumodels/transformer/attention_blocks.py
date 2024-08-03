@@ -442,7 +442,7 @@ class StableCrossFlashAttention(nn.Module):
         ), "The number of dimensions must be divible by the number of heads"
 
         self.head_dim = embed_dim // num_heads
-        self.out_projection = nn.Linear(2 * self.embed_dim, 2 * self.embed_dim)
+        self.out_projection = nn.Linear(self.embed_dim, self.embed_dim)
 
         self.proj_q1 = nn.Linear(self.embed_dim, self.embed_dim)
         self.proj_k1 = nn.Linear(self.embed_dim, self.embed_dim)
@@ -455,10 +455,10 @@ class StableCrossFlashAttention(nn.Module):
         self.dropout_attention = nn.Dropout(dropout)
         self.dropout_projection = nn.Dropout(dropout)
 
-        self.q1_norm = RMSNorm(dim=self.embed_dim)
-        self.q2_norm = RMSNorm(dim=self.embed_dim)
-        self.k1_norm = RMSNorm(dim=self.embed_dim)
-        self.k2_norm = RMSNorm(dim=self.embed_dim)
+        self.q1_norm = RMSNorm(dim=self.head_dim)
+        self.q2_norm = RMSNorm(dim=self.head_dim)
+        self.k1_norm = RMSNorm(dim=self.head_dim)
+        self.k2_norm = RMSNorm(dim=self.head_dim)
 
     def reshape_for_attention(self, x):
         B, L, E = x.shape
@@ -524,7 +524,8 @@ class StableCrossFlashAttention(nn.Module):
         # projecao final
         x_att_projected = self.out_projection(self.dropout_projection(x_att_reshaped))
 
-        return x_att_projected
+        # separa agora os dois players para retornar eles separados
+        return x_att_projected[:, y.shape[1] :], x_att_projected[:, : y.shape[1]]
 
 
 class RotaryFlashDecoderBlock(nn.Module):
