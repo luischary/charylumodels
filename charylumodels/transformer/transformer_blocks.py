@@ -172,6 +172,26 @@ class FeedFowardBlock(nn.Module):
         return x_2
 
 
+class FeedForwardSwiGLUBlock(nn.Module):
+    """
+    Implements FeedForward with SwiGLU (https://arxiv.org/pdf/2002.05202v1)
+    """
+
+    def __init__(self, embed_dim, hidden_size, dropout: float = 0.1):
+        super().__init__()
+
+        self.ff_1 = nn.Linear(embed_dim, hidden_size)
+        self.dropout = nn.Dropout(dropout)
+        self.ff_2 = nn.Linear(hidden_size, embed_dim)
+        self.ff_3 = nn.Linear(embed_dim, hidden_size)
+
+    def forward(self, x):
+        x_1 = nn.functional.silu(self.ff_1(x)) * self.ff_3(x)
+        x_drop = self.dropout(x_1)
+        x_2 = self.ff_2(x_drop)
+        return x_2
+
+
 class DecoderBlock(nn.Module):
     def __init__(self, embed_dim, num_heads, hidden_size, dropout: float = 0.1):
         super().__init__()

@@ -5,7 +5,7 @@ from setuptools import find_packages, setup
 # instala ele depois com pip install flash-attn==2.5.8 --no-build-isolation
 
 _deps = [
-    "numpy==2.0.0",
+    "numpy==1.26.4",
     "charylu-tokenizer==0.0.5",
     "tqdm",
     "torch==2.3.1",
@@ -23,7 +23,7 @@ setup(
     packages=find_packages(include=["charylumodels"]),
     # include_package_data=True,
     package_data={"": ["transformer/*.py", "models/**/*.py"]},
-    version="0.0.4",
+    version="0.0.5",
     description="Biblioteca de modelos implemantados por Luis Chary",
     author="Luis Felipe Chary",
     install_requires=_deps,
