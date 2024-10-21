@@ -6,7 +6,7 @@ from setuptools import find_packages, setup
 
 _deps = [
     "numpy==1.26.4",
-    "charylu-tokenizer==0.0.5",
+    "charylu-tokenizer==0.0.6",
     "tqdm",
     "torch==2.3.1",
     "lightning==2.3.0",

@@ -42,7 +42,13 @@ def _make_causal_mask(
     )
 
 
-def qkv_attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask=None):
+def qkv_attention(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    mask=None,
+    return_attention: bool = False,
+):
     """
     Recebe tensores no shape [B, H, L, D] para calculo da atencao
     """
@@ -58,7 +64,10 @@ def qkv_attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask=None):
     attention = torch.softmax(qk / np.sqrt(embed_dim), dim=-1)
     # [batch, heads, decoder_len, head_dim] * [batch, heasd, encoder_len, head_dim]
     full_attention = torch.einsum("bhde, bher -> bhdr", attention, v)
-    return full_attention
+    if return_attention:
+        return full_attention, attention
+    else:
+        return full_attention
 
 
 def block_wise_parallel_attention(

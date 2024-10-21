@@ -39,10 +39,10 @@ class TransformerCache:
         if self.v is None:
             self.v = x
         else:
-            self.v = torch.cat([self.v, x], dim=2)
+            self.v = torch.cat([self.v, x], dim=1)
 
-        if self.v.shape[2] > self.max_len:
-            self.v = self.v[:, :, -self.max_len :, :]
+        if self.v.shape[1] > self.max_len:
+            self.v = self.v[:, -self.max_len :, :, :]
 
     def update_k_cache(self, x):
         """
@@ -51,34 +51,44 @@ class TransformerCache:
         if self.k is None:
             self.k = x
         else:
-            self.k = torch.cat([self.k, x], dim=2)
+            self.k = torch.cat([self.k, x], dim=1)
 
-        if self.k.shape[2] > self.max_len:
-            self.k = self.k[:, :, -self.max_len :, :]
+        if self.k.shape[1] > self.max_len:
+            self.k = self.k[:, -self.max_len :, :, :]
 
     def add_v_cache(self, x, update_cache: bool = True):
         """
-        x - [batch, heads, len, head_dim]
+        x - [batch, len, heads, head_dim]
         """
 
         if self.v is not None:
-            ans = torch.cat([self.v, x], dim=2)
+            if x is not None:
+                ans = torch.cat([self.v, x], dim=1)
+            else:
+                ans = self.v
         else:
             ans = x
 
-        if update_cache:
+        if update_cache and x is not None:
             self.update_v_cache(x)
         return ans
 
     def add_k_cache(self, x, update_cache: bool = True):
         """
-        x - [batch, heads, len, head_dim]
+        x - [batch, len, heads, head_dim]
         """
         if self.k is not None:
-            ans = torch.cat([self.k, x], dim=2)
+            if x is not None:
+                ans = torch.cat([self.k, x], dim=1)
+            else:
+                ans = self.k
         else:
             ans = x
 
-        if update_cache:
+        if update_cache and x is not None:
             self.update_k_cache(x)
         return ans
+
+    def clear_cache(self):
+        self.k = None
+        self.v = None

@@ -138,12 +138,21 @@ class MultiHeadCrossAttention(nn.Module):
         # virou [batch, len, embed_dim]
         return x
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor, mask: torch.Tensor = None):
+    def forward(
+        self,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        mask: torch.Tensor = None,
+        return_attn_probs: bool = False,
+    ):
         q = self.reshape_for_attention(self.proj_q(x))
         k = self.reshape_for_attention(self.proj_k(y))
         v = self.reshape_for_attention(self.proj_v(y))
 
-        x_att = qkv_attention(q, k, v, mask)
+        if return_attn_probs:
+            x_att, attn_probs = qkv_attention(q, k, v, mask, return_attention=True)
+        else:
+            x_att = qkv_attention(q, k, v, mask)
         x_att = self.dropout_attention(x_att)
 
         # faz a concatenacao, volta para o shape [batch, len, embed_dim]
@@ -152,7 +161,10 @@ class MultiHeadCrossAttention(nn.Module):
         # projecao final
         x_att = self.out_projection(x_att)
         x_att = self.dropout_projection(x_att)
-        return x_att
+        if return_attn_probs:
+            return x_att, attn_probs
+        else:
+            return x_att
 
 
 class FeedFowardBlock(nn.Module):

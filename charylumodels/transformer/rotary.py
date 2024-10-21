@@ -44,8 +44,8 @@ def apply_cross_rotary_emb(
     Para ser usada quando q e k tem tamanhos diferentes
     xq.shape = [B, L, H, D]
     """
-    q_len = xq_.shape[-3]
-    k_len = xq_.shape[-3]
+    q_len = xq.shape[-3]
+    k_len = xk.shape[-3]
 
     xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
     xk_ = torch.view_as_complex(xk.float().reshape(*xk.shape[:-1], -1, 2))

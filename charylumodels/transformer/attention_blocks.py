@@ -8,6 +8,7 @@ from charylumodels.transformer.rotary import apply_rotary_emb, apply_cross_rotar
 from charylumodels.transformer.attention import qkv_attention, make_causal_mask
 from charylumodels.transformer.transformer_blocks import FeedFowardBlock
 from charylumodels.transformer.norm import RMSNorm
+from charylumodels.transformer.utils import TransformerCache
 
 
 class RotaryMultiHeadAttention(nn.Module):
@@ -127,13 +128,19 @@ class RotaryMultiHeadFlashAttention(nn.Module):
         self,
         x: torch.Tensor,
         rotary_freqs: torch.Tensor,
+        cache: TransformerCache = None,
     ):
-        q = self.reshape_for_attention(self.proj_q(x.clone()))
-        k = self.reshape_for_attention(self.proj_k(x.clone()))
-        v = self.reshape_for_attention(self.proj_v(x.clone()))
+        q = self.reshape_for_attention(self.proj_q(x))
+        k = self.reshape_for_attention(self.proj_k(x))
+        v = self.reshape_for_attention(self.proj_v(x))
 
         # rotary embeddings
         q, k = apply_rotary_emb(q, k, rotary_freqs)
+
+        # se tiver cache
+        if cache is not None:
+            k = cache.add_k_cache(k)
+            v = cache.add_v_cache(v)
 
         if next(self.parameters()).is_cuda:
             x_att = flash_attn_func(
@@ -178,6 +185,7 @@ class RotaryMHFlashCrossAttention(nn.Module):
         embed_dim: int = 512,
         dropout=0.1,
         causal: bool = False,
+        window_size: int = -1,
     ):
         super().__init__()
 
@@ -185,6 +193,7 @@ class RotaryMHFlashCrossAttention(nn.Module):
         self.embed_dim = embed_dim
         self.dropout = dropout
         self.causal = causal
+        self.window_size = window_size
 
         assert (
             embed_dim % num_heads == 0
@@ -217,14 +226,30 @@ class RotaryMHFlashCrossAttention(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
+        y: torch.Tensor,
         rotary_freqs: torch.Tensor,
+        cache: TransformerCache = None,
     ):
-        q = self.reshape_for_attention(self.proj_q(x.clone()))
-        k = self.reshape_for_attention(self.proj_k(x.clone()))
-        v = self.reshape_for_attention(self.proj_v(x.clone()))
+        q = self.reshape_for_attention(self.proj_q(x))
 
-        # rotary embeddings
-        q, k = apply_cross_rotary_emb(q, k, rotary_freqs)
+        # cache no cross attention eh mais complicado
+        if cache is not None:
+            if cache.k is None:  # nao tem nada gravado
+                k_ = self.reshape_for_attention(self.proj_k(y.clone()))
+                v_ = self.reshape_for_attention(self.proj_v(y.clone()))
+                _, k_ = apply_cross_rotary_emb(k_, k_, rotary_freqs)
+                cache.update_k_cache(k_)
+                cache.update_v_cache(v_)
+
+            # recupera as paradas gravadas
+            k = cache.add_k_cache(None)
+            v = cache.add_v_cache(None)
+            q, _ = apply_rotary_emb(q, q, rotary_freqs)
+
+        else:
+            k = self.reshape_for_attention(self.proj_k(y.clone()))
+            v = self.reshape_for_attention(self.proj_v(y.clone()))
+            q, k = apply_cross_rotary_emb(q, k, rotary_freqs)
 
         x_att = flash_attn_func(
             q=q.half(),  # flash requer float16
@@ -300,13 +325,15 @@ class MultiHeadFlashAttention(nn.Module):
         # virou [batch, len, embed_dim]
         return x_view
 
-    def forward(
-        self,
-        x: torch.Tensor,
-    ):
+    def forward(self, x: torch.Tensor, cache: TransformerCache = None):
         q = self.reshape_for_attention(self.proj_q(x.clone()))
         k = self.reshape_for_attention(self.proj_k(x.clone()))
         v = self.reshape_for_attention(self.proj_v(x.clone()))
+
+        # se tiver cache
+        if cache is not None:
+            k = cache.add_k_cache(k)
+            v = cache.add_v_cache(v)
 
         x_att = flash_attn_func(
             q=q.half(),  # flash requer float16
@@ -381,14 +408,22 @@ class MultiHeadFlashCrossAttention(nn.Module):
         # virou [batch, len, embed_dim]
         return x_view
 
-    def forward(
-        self,
-        x: torch.Tensor,
-        y: torch.Tensor,
-    ):
+    def forward(self, x: torch.Tensor, y: torch.Tensor, cache: TransformerCache = None):
         q = self.reshape_for_attention(self.proj_q(x.clone()))
-        k = self.reshape_for_attention(self.proj_k(y.clone()))
-        v = self.reshape_for_attention(self.proj_v(y.clone()))
+
+        # cache no cross attention eh mais complicado
+        if cache is not None:
+            if cache.k is not None:
+                k = cache.add_k_cache(None)
+                v = cache.add_v_cache(None)
+            else:
+                k = self.reshape_for_attention(self.proj_k(y.clone()))
+                v = self.reshape_for_attention(self.proj_v(y.clone()))
+                k = cache.add_k_cache(k)
+                v = cache.add_v_cache(v)
+        else:
+            k = self.reshape_for_attention(self.proj_k(y.clone()))
+            v = self.reshape_for_attention(self.proj_v(y.clone()))
 
         x_att = flash_attn_func(
             q=q.half(),  # flash requer float16
@@ -400,6 +435,7 @@ class MultiHeadFlashCrossAttention(nn.Module):
             return_attn_probs=False,
             window_size=(self.window_size, self.window_size),
         )
+
         # para inferencia
         if not self.training or q.dtype != x_att.dtype:
             # se o modelo esta em float32 precisa voltar para float32
