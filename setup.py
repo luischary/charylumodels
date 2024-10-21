@@ -5,17 +5,17 @@ from setuptools import find_packages, setup
 # instala ele depois com pip install flash-attn==2.5.8 --no-build-isolation
 
 _deps = [
-    "numpy==1.26.4",
+    "numpy<=1.26.4",
     "charylu-tokenizer==0.0.6",
     "tqdm",
-    "torch==2.3.1",
-    "lightning==2.3.0",
+    "torch<=2.3.1",
+    "lightning<=2.3.0",
     "wheel",
-    "bitsandbytes==0.43.1",
-    "packaging==24.1",
-    "ninja==1.11.1.1",
-    "torchmetrics==1.4.0.post0",
-    "deepspeed==0.14.4",
+    "bitsandbytes<=0.43.1",
+    "packaging<=24.1",
+    "ninja<=1.11.1.1",
+    "torchmetrics<=1.4.0.post0",
+    "deepspeed<=0.14.4",
 ]
 
 setup(
