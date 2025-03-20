@@ -2,7 +2,12 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from flash_attn import flash_attn_func
+FLASH_AVAILABLE = True
+try:
+    from flash_attn import flash_attn_func
+except ModuleNotFoundError as e:
+    FLASH_AVAILABLE = False
+    print("FLASH ATTENTION NAO ESTA DISPONIVEL")
 
 from charylumodels.transformer.rotary import apply_rotary_emb, apply_cross_rotary_emb
 from charylumodels.transformer.attention import qkv_attention, make_causal_mask
