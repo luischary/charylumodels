@@ -32,6 +32,12 @@ class TransformerCache:
         self.k = None
         self.v = None
 
+    def get_len(self):
+        if self.k is not None:
+            return self.k.shape[1]
+
+        return 0
+
     def update_v_cache(self, x):
         """
         x - [batch, len, heads, head_dim]

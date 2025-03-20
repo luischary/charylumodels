@@ -229,6 +229,7 @@ class RotaryMHFlashCrossAttention(nn.Module):
         y: torch.Tensor,
         rotary_freqs: torch.Tensor,
         cache: TransformerCache = None,
+        rotary_freqs_cross: torch.Tensor = None,
     ):
         q = self.reshape_for_attention(self.proj_q(x))
 
@@ -237,7 +238,7 @@ class RotaryMHFlashCrossAttention(nn.Module):
             if cache.k is None:  # nao tem nada gravado
                 k_ = self.reshape_for_attention(self.proj_k(y.clone()))
                 v_ = self.reshape_for_attention(self.proj_v(y.clone()))
-                _, k_ = apply_cross_rotary_emb(k_, k_, rotary_freqs)
+                _, k_ = apply_cross_rotary_emb(k_, k_, rotary_freqs_cross)
                 cache.update_k_cache(k_)
                 cache.update_v_cache(v_)
 

@@ -5,10 +5,11 @@ import torch.nn as nn
 
 from charylumodels.transformer.attention_blocks import (
     RotaryMultiHeadFlashAttention,
-    RotaryMultiHeadFlashCrossAttention,
+    RotaryMHFlashCrossAttention,
 )
 from charylumodels.transformer.transformer_blocks import FeedFowardBlock
 from charylumodels.transformer.rotary import precompute_freqs_cis
+from charylumodels.transformer.utils import TransformerCache
 
 
 @dataclass
@@ -20,12 +21,10 @@ class ModelArgs:
     num_heads: int
     dropout: float = 0.1
     window_size: int = -1
-
     max_seq_len: int = 2048
-
     rotary_theta: int = 10_000
-
     make_cross_attention: bool = False
+    use_cache: bool = False
 
 
 class DecoderBlock(nn.Module):
@@ -39,6 +38,7 @@ class DecoderBlock(nn.Module):
             causal=True,
             window_size=params.window_size,
         )
+
         self.feedforward = FeedFowardBlock(
             embed_dim=params.embed_dim,
             hidden_size=params.hidden_size,
@@ -53,7 +53,7 @@ class DecoderBlock(nn.Module):
         if params.make_cross_attention:
             self.norm_3 = nn.LayerNorm(normalized_shape=params.embed_dim)
             self.drop_skip_3 = nn.Dropout(params.dropout)
-            self.cross_attention = RotaryMultiHeadFlashCrossAttention(
+            self.cross_attention = RotaryMHFlashCrossAttention(
                 num_heads=params.num_heads,
                 embed_dim=params.embed_dim,
                 dropout=params.dropout,
@@ -61,19 +61,39 @@ class DecoderBlock(nn.Module):
                 window_size=-1,  # nao faz sentido para o cross attention.... pode dar ruim se mudar isso
             )
 
+        if params.use_cache:
+            self.cross_attention_cache = TransformerCache()
+            self.attention_cache = TransformerCache()
+        else:
+            self.cross_attention_cache = None
+            self.attention_cache = None
+
         self.make_cross_attention = params.make_cross_attention
 
-    def forward(self, x, rotary_freqs, x_cross=None):
-        x = self.drop_skip_1(x) + self.attention(self.norm_1(x), rotary_freqs)
+    def forward(self, x, rotary_freqs, x_cross=None, rotary_freqs_cross=None):
+        x = self.drop_skip_1(x) + self.attention(
+            self.norm_1(x), rotary_freqs, self.attention_cache
+        )
 
         # caso tenha cross attention
         if self.make_cross_attention:
             x = self.drop_skip_3(x) + self.cross_attention(
-                self.norm_3(x), x_cross, rotary_freqs
+                self.norm_3(x),
+                x_cross,
+                rotary_freqs,
+                self.cross_attention_cache,
+                rotary_freqs_cross,
             )
 
         x = self.drop_skip_2(x) + self.feedforward(self.norm_2(x))
         return x
+
+    def clear_cache(self):
+        if self.attention_cache is not None:
+            self.attention_cache.clear_cache()
+
+        if self.cross_attention_cache is not None:
+            self.cross_attention_cache.clear_cache()
 
 
 class Decoder(nn.Module):
@@ -90,23 +110,38 @@ class Decoder(nn.Module):
         )
 
         self.layers = nn.ModuleList()
+        self.cache = []
         for _ in range(params.num_layers):
             self.layers.append(DecoderBlock(params))
 
         self.output_norm = nn.LayerNorm(normalized_shape=params.embed_dim)
 
-    def forward(self, x, x_cross=None):
+    def forward(self, x, x_cross=None, pos=0):
         B, seq_len = x.shape
-        rotary_freqs = self.rotary_freqs[:seq_len].to(x.device)
+        if seq_len > 1:
+            x = x[:, -1:]
+
+        rotary_freqs = self.rotary_freqs[pos:].to(x.device)
+
+        if x_cross is not None:
+            rotary_freqs_cross = self.rotary_freqs[:].to(
+                x.device
+            )  # cross sempre vai ser 1 vez so
+        else:
+            rotary_freqs_cross = None
 
         x = self.embedding(x)
 
         for layer in self.layers:
-            x = layer(x, rotary_freqs, x_cross)
+            x = layer(x, rotary_freqs, x_cross, rotary_freqs_cross)
 
         # ja retorna uma saida normalizada
         # nenhum wrapper precisa normalizar a saida
         return self.output_norm(x)
+
+    def reset_cache(self):
+        for l in self.layers:
+            l.clear_cache()
 
 
 class DecoderLM(nn.Module):
